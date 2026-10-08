@@ -52,64 +52,215 @@ function applyCaptionMode() {
   ccBtn.classList.toggle("off", !captionsOn);
 }
 
-function loadVideo(file) {
-  const okType = /\.(mp4|webm|mov)$/i.test(file.name) || file.type.startsWith("video/");
-  if (!okType) return toast("Please choose an .mp4, .webm or .mov file", true);
-  if (videoUrl) URL.revokeObjectURL(videoUrl);
-  videoUrl = URL.createObjectURL(file);
-  video.src = videoUrl;
-  video.playbackRate = parseFloat($("speed").value);
-  $("videoWrap").classList.add("has-video");
-  hasVideo = true;
-  markLoaded($("videoZone"), $("videoName"), file);
-  toast("Video loaded: " + file.name);
-  updateStatus();
-}
-
-  // Helper to attach a subtitle track to the video element and update UI state.
-  function attachSubtitleTrack(url, file) {
-    // Remove any existing tracks
-    video.querySelectorAll("track").forEach((t) => t.remove());
-    const el = document.createElement("track");
-    el.kind = "subtitles";
-    el.label = "Subtitles";
-    el.srclang = "en";
-    el.src = url;
-    video.appendChild(el);
-    // Ensure captions show immediately
-    el.mode = "showing";
-    el.addEventListener("load", applyCaptionMode);
-    captionsOn = true;
-    applyCaptionMode();
-    hasVtt = true;
-    markLoaded($("vttZone"), $("vttName"), file);
-    toast("Subtitles loaded: " + file.name);
+  function loadVideo(file) {
+    const okType =
+      /\.(mp4|webm|mov)$/i.test(file.name) ||
+      file.type.startsWith("video/");
+    if (!okType) return toast("Please choose an .mp4, .webm or .mov file", true);
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    videoUrl = URL.createObjectURL(file);
+    video.src = videoUrl;
+    video.playbackRate = parseFloat($("speed").value);
+    $("videoWrap").classList.add("has-video");
+    hasVideo = true;
+    markLoaded($("videoZone"), $("videoName"), file);
+    toast("Video loaded: " + file.name);
     updateStatus();
   }
 
+    // Helper to attach a subtitle track to the video element and update UI state.
+    function attachSubtitleTrack(url, file) {
+      // Remove any existing tracks
+      video.querySelectorAll("track").forEach((t) => t.remove());
+      const el = document.createElement("track");
+      el.kind = "subtitles";
+      el.label = "Subtitles";
+      el.srclang = "en";
+      el.src = url;
+      video.appendChild(el);
+      // Ensure captions show immediately
+      el.mode = "showing";
+      el.addEventListener("load", applyCaptionMode);
+      captionsOn = true;
+      applyCaptionMode();
+      hasVtt = true;
+      markLoaded($("vttZone"), $("vttName"), file);
+      toast("Subtitles loaded: " + file.name);
+      updateStatus();
+    }
+
+  function msToTimestamp(ms) {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const msRem = ms % 1000;
+
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(msRem).padStart(3, "0")}`;
+  }
+
+  function parseScc(text) {
+    const lines = text.split(/\r?\n/);
+    const cues = [];
+
+    const controlWords = new Set([
+      "9420",
+      "94e0",
+      "97a2",
+      "97a1",
+      "9723",
+      "9452",
+      "9440",
+      "9454",
+      "94f2",
+      "94f4",
+      "942c",
+      "942f",
+      "8080",
+      "91ae"
+    ]);
+
+    function tcToMs(tc) {
+      if (!/^\d{2}:\d{2}:\d{2}:\d{2}$/.test(tc)) {
+        return null;
+      }
+
+      const [hh, mm, ss, ff] = tc.split(":").map(Number);
+
+      return (
+        ((hh * 60 + mm) * 60 + ss) * 1000 +
+        ff * 40
+      );
+    }
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+
+      if (!line || line.startsWith("Scenarist_SCC")) {
+        continue;
+      }
+
+      const parts = line.split(/\s+/);
+
+      if (parts.length < 2) {
+        continue;
+      }
+
+      const timecode = parts[0];
+      const words = parts.slice(1);
+
+      let caption = "";
+
+      for (const word of words) {
+        if (word.length !== 4) continue;
+
+        if (controlWords.has(word.toLowerCase())) {
+          continue;
+        }
+
+        const b1 =
+          parseInt(word.slice(0, 2), 16) & 0x7f;
+
+        const b2 =
+          parseInt(word.slice(2, 4), 16) & 0x7f;
+
+        if (b1 >= 0x20 && b1 <= 0x7e) {
+          caption += String.fromCharCode(b1);
+        }
+
+        if (b2 >= 0x20 && b2 <= 0x7e) {
+          caption += String.fromCharCode(b2);
+        }
+      }
+
+      caption = caption.trim();
+
+      if (!caption) continue;
+
+      const start = tcToMs(timecode);
+
+      if (start === null || Number.isNaN(start)) {
+        continue;
+      }
+
+      cues.push({
+        start,
+        text: caption
+      });
+    }
+
+    let vtt = "WEBVTT\n\n";
+
+    for (let i = 0; i < cues.length; i++) {
+      const cue = cues[i];
+
+      const end =
+        i < cues.length - 1
+          ? cues[i + 1].start
+          : cue.start + 3000;
+
+      vtt +=
+        `${msToTimestamp(cue.start)} --> ${msToTimestamp(end)}\n` +
+        `${cue.text}\n\n`;
+    }
+
+    return vtt;
+  }
+
+
   function loadVtt(file) {
-    const isVtt = /.vtt$/i.test(file.name);
-    const isSrt = /.srt$/i.test(file.name);
-    if (!isVtt && !isSrt) return toast("Please choose a .vtt or .srt file", true);
-    if (vttUrl) URL.revokeObjectURL(vttUrl);
+    const isVtt = /\.vtt$/i.test(file.name);
+    const isSrt = /\.srt$/i.test(file.name);
+    const isScc = /\.scc$/i.test(file.name);
+
+    if (!isVtt && !isSrt && !isScc) {
+      return toast(
+        "Please choose a .vtt, .srt or .scc file",
+        true
+      );
+    }
+
+    if (vttUrl) {
+      URL.revokeObjectURL(vttUrl);
+    }
+
     if (isVtt) {
-      // Directly use the VTT file
       vttUrl = URL.createObjectURL(file);
       attachSubtitleTrack(vttUrl, file);
-    } else {
-      // Convert SRT to WebVTT in the browser
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const srtText = e.target.result;
-        // Add WEBVTT header and replace comma timestamps with periods
-        const vttText = "WEBVTT\n\n" + srtText.replace(/,/g, ".");
-        const blob = new Blob([vttText], { type: "text/vtt" });
-        vttUrl = URL.createObjectURL(blob);
-        toast("SRT converted successfully");
-        attachSubtitleTrack(vttUrl, file);
-      };
-      reader.readAsText(file);
+      return;
     }
+
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      let vttText;
+
+      if (isSrt) {
+        vttText =
+          "WEBVTT\n\n" +
+          e.target.result.replace(/,/g, ".");
+
+        toast("SRT converted successfully");
+      } else if (isScc) {
+        vttText = parseScc(e.target.result);
+
+        if (!vttText || !vttText.trim()) {
+          toast("Failed to parse SCC file", true);
+          return;
+        }
+
+        toast("SCC converted successfully");
+      }
+
+      const blob = new Blob(
+        [vttText],
+        { type: "text/vtt" }
+      );
+
+      vttUrl = URL.createObjectURL(blob);
+      attachSubtitleTrack(vttUrl, file);
+    };
+
+    reader.readAsText(file);
   }
 
 function setupZone(zoneId, inputId, handler) {
