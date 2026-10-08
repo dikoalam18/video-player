@@ -27,8 +27,14 @@ function parseScc(text) {
     "942c",
     "942f",
     "8080",
-    "91ae"
-  ]);
+    "91ae",
+    "13e0",
+    "1340",
+    "1376",
+    "13f4",
+    "9476",
+    "9229"
+  ]); 
 
   function tcToMs(tc) {
     if (!/^\d{2}:\d{2}:\d{2}:\d{2}$/.test(tc)) {
@@ -69,6 +75,7 @@ function parseScc(text) {
       if (word.length !== 4) continue;
 
       if (controlWords.has(word.toLowerCase())) {
+        caption += " ";
         continue;
       }
 
@@ -80,16 +87,24 @@ function parseScc(text) {
         parseInt(word.slice(2, 4), 16) &
         0x7f;
 
-      if (b1 >= 0x20 && b1 <= 0x7e) {
-        caption += String.fromCharCode(b1);
-      }
+        if (b1 === 0x00) {
+          caption += " ";
+        } else if (b1 >= 0x20 && b1 <= 0x7e) {
+          caption += String.fromCharCode(b1);
+        }
 
-      if (b2 >= 0x20 && b2 <= 0x7e) {
-        caption += String.fromCharCode(b2);
-      }
+        if (b2 === 0x00) {
+          caption += " ";
+        } else if (b2 >= 0x20 && b2 <= 0x7e) {
+          caption += String.fromCharCode(b2);
+        }
     }
 
-    caption = caption.trim();
+    caption = caption
+      .replace(/\s+/g, " ")
+      .replace(/'\s+s\b/g, "'s")
+      .trim();
+
 
     if (!caption) continue;
 

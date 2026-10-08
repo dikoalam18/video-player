@@ -153,9 +153,10 @@ function applyCaptionMode() {
       for (const word of words) {
         if (word.length !== 4) continue;
 
-        if (controlWords.has(word.toLowerCase())) {
-          continue;
-        }
+      if (controlWords.has(word.toLowerCase())) {
+        caption += " ";
+        continue;
+      }
 
         const b1 =
           parseInt(word.slice(0, 2), 16) & 0x7f;
@@ -163,16 +164,22 @@ function applyCaptionMode() {
         const b2 =
           parseInt(word.slice(2, 4), 16) & 0x7f;
 
-        if (b1 >= 0x20 && b1 <= 0x7e) {
+        if (b1 === 0x00) {
+          caption += " ";
+        } else if (b1 >= 0x20 && b1 <= 0x7e) {
           caption += String.fromCharCode(b1);
         }
 
-        if (b2 >= 0x20 && b2 <= 0x7e) {
+        if (b2 === 0x00) {
+          caption += " ";
+        } else if (b2 >= 0x20 && b2 <= 0x7e) {
           caption += String.fromCharCode(b2);
         }
       }
 
-      caption = caption.trim();
+      caption = caption
+        .replace(/\s+/g, " ")
+        .trim();
 
       if (!caption) continue;
 
