@@ -331,59 +331,72 @@ $("fsBtn").addEventListener("click", () => {
 // F: toggle fullscreen
 // C: toggle captions
 window.addEventListener("keydown", (e) => {
+  if (e.repeat) return;
+
   const tag = e.target.tagName.toLowerCase();
-  // ignore key events from form controls to avoid accidental shortcuts
-  if (['input', 'textarea', 'select'].includes(tag)) return;
+
+  // ignore key events from form controls
+  if (["input", "textarea", "select"].includes(tag)) return;
   if (e.defaultPrevented) return;
+
   switch (e.key.toLowerCase()) {
-    case ' ': // space
+    case " ":
       e.preventDefault();
-      if (!video) return;
-      if (video.paused) video.play();
-      else video.pause();
+
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
       break;
-    case 'arrowleft':
+
+    case "arrowleft":
       e.preventDefault();
-      if (!video) return;
       video.currentTime = Math.max(0, video.currentTime - 5);
       break;
-    case 'arrowright':
+
+    case "arrowright":
       e.preventDefault();
-      if (!video) return;
-      // guard against NaN duration before metadata loads
       const maxTime = isNaN(video.duration) ? 0 : video.duration;
       video.currentTime = Math.min(maxTime, video.currentTime + 5);
       break;
-    case 'f':
+
+    case "f":
       e.preventDefault();
-      if (document.fullscreenElement) document.exitFullscreen();
-      else $("videoWrap").requestFullscreen?.();
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        $("videoWrap").requestFullscreen?.();
+      }
       break;
-  case 'c':
-    e.preventDefault();
-    if (!video.textTracks.length) return;
-    captionsOn = !captionsOn;
-    applyCaptionMode();
-    break;
-  case 'm':
-    e.preventDefault();
-    if (!video) return;
-    // Toggle mute and preserve volume
-    if (!video.muted) {
-      previousVolume = video.volume;
-      video.muted = true;
-    } else {
-      video.muted = false;
-      video.volume = previousVolume;
-    }
-    break;
-  case '0':
-    e.preventDefault();
-    if (!video) return;
-    // Restart playback from beginning; keep playing state
-    const wasPlaying = !video.paused;
-    video.currentTime = 0;
-    if (wasPlaying) video.play();
-    break;
+
+    case "c":
+      e.preventDefault();
+      if (!video.textTracks.length) return;
+      captionsOn = !captionsOn;
+      applyCaptionMode();
+      break;
+
+    case "m":
+      e.preventDefault();
+
+      if (!video.muted) {
+        previousVolume = video.volume;
+        video.muted = true;
+      } else {
+        video.muted = false;
+        video.volume = previousVolume;
+      }
+      break;
+
+    case "0":
+      e.preventDefault();
+      const wasPlaying = !video.paused;
+      video.currentTime = 0;
+
+      if (wasPlaying) {
+        video.play();
+      }
+      break;
   }
 });
